@@ -1,0 +1,16 @@
+# Reference-only checkout (MAME source, used purely as documentation/ground
+# truth while porting - not a build dependency, has its own nested git repo)
+/mame/
+
+# Copyrighted/personal hardware dumps - never committed, same policy as the
+# D-110 project. Users must supply their own.
+/roms/
+/misc/
+
+# Build directories
+/engine/build/
+/plugin/build/
+
+# Scratch/debug output from development sessions
+*.wav
+render_log*.txt
