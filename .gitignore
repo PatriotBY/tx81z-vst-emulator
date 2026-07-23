@@ -14,3 +14,4 @@
 # Scratch/debug output from development sessions
 *.wav
 render_log*.txt
+*.zip
