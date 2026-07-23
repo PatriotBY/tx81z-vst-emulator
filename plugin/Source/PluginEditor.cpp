@@ -11,7 +11,7 @@ const juce::Colour kLedOn(0xffe03020);
 
 Tx81zPanel::Tx81zPanel(Tx81zAudioProcessor &p)
 	: processor(p)
-	, powerBtn(p.powerOn)
+	, powerBtn(p.powerOn, p)
 	, storeEqCopyBtn("STORE/\nEQ COPY", p.buttons.storeEqCopy)
 	, utilityBtn("UTILITY", p.buttons.utility)
 	, editCompareBtn("EDIT/\nCOMPARE", p.buttons.editCompare)

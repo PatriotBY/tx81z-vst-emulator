@@ -70,10 +70,12 @@ public:
 	// physical switch, no need for a message-passing layer.
 	Tx81zButtonState buttons;
 
-	// Power switch - a real latching toggle, not a momentary press. While
-	// off, the engine stops advancing (frozen, same as no power reaching the
-	// CPU) and the audio output is silent.
-	std::atomic<bool> powerOn{ true };
+	// Power switch - a real latching toggle, not a momentary press. Starts
+	// OFF (matching a real unit that's never been switched on): LCD blank,
+	// LEDs dark, engine frozen and silent. Call togglePower() rather than
+	// writing this directly - it also arms the boot sequence.
+	std::atomic<bool> powerOn{ false };
+	void togglePower();
 
 	// LEDs 1-4 (port6 bits 4-7, see cpu.port6_output below), bit0=led1.
 	int ledBits() const { return ledBitsAtomic.load(); }
@@ -118,8 +120,22 @@ private:
 	juce::String lcdLine1, lcdLine2;
 	int samplesSinceLcdUpdate = 0;
 
+	// Set by togglePower() (message thread) when switching on; consumed at
+	// the start of the next processBlock (audio thread) to actually reset
+	// the CPU. Booting then happens by simply letting the normal per-sample
+	// stepOneSample() loop run from a freshly-reset CPU in real time - the
+	// same real boot banner a real TX81Z takes just plays out naturally,
+	// instead of being fast-forwarded before the user ever sees it.
+	std::atomic<bool> pendingBootReset{ false };
+
+	// A real factory NVRAM drops firmware into a cold-start "UTILITY MODE"
+	// screen ~1.9s after boot; pressing Play/Perform backs out of it (see
+	// the tx81z-vst-project memory notes). Timed against real elapsed
+	// seconds since the last reset, same as the button auto-presses itself.
+	double bootElapsedSeconds = 0.0;
+	bool autoPlayPerformPressed = false, autoPlayPerformReleased = false;
+
 	void loadResources();
-	void bootFirmware();
 	void stepOneSample();
 	void onSciTick();
 

@@ -6,6 +6,15 @@
 // A momentary, active-low style panel button: pressed while the mouse is
 // down, released on mouse up or if the mouse leaves while dragging - matches
 // how a real front-panel button behaves (no click-to-toggle).
+//
+// Also supports latching via double-click: some real TX81Z button combos
+// need two keys held down *at once* (e.g. entering a diagnostic/alternate
+// mode), which a single mouse pointer can't do with plain momentary clicks.
+// Double-clicking a button latches it held (visually sunk + an amber
+// outline); a second double-click releases it. This only changes how mouse
+// gestures map to the same state.store(true/false) calls a normal click
+// already uses - the emulated hardware can't tell a latch from a hand
+// actually holding the button down.
 class MomentaryButton : public juce::Component
 {
 public:
@@ -14,8 +23,9 @@ public:
 	{
 	}
 
-	// true exactly while the mouse is held down on this button - MODE
-	// SELECT's LEDs mirror this directly (lit while held, off on release).
+	// true exactly while the mouse is held down on this button (or it's
+	// latched) - MODE SELECT's LEDs mirror this directly (lit while held,
+	// off on release).
 	bool isPressed() const { return state.load(); }
 
 	void paint(juce::Graphics &g) override
@@ -29,29 +39,44 @@ public:
 		g.setColour(juce::Colours::whitesmoke);
 		g.setFont(juce::Font(juce::FontOptions(juce::jmax(8.0f, getHeight() * 0.22f))));
 		g.drawFittedText(text, getLocalBounds().reduced(2), juce::Justification::centred, 3);
+
+		if (latched)
+		{
+			g.setColour(juce::Colours::orange);
+			g.drawRoundedRectangle(bounds.reduced(1.5f), 3.0f, 2.0f);
+		}
 	}
 
-	void mouseDown(const juce::MouseEvent &) override { state.store(true); repaint(); }
-	void mouseUp(const juce::MouseEvent &) override { state.store(false); repaint(); }
+	void mouseDown(const juce::MouseEvent &) override { if (!latched) { state.store(true); repaint(); } }
+	void mouseUp(const juce::MouseEvent &) override { if (!latched) { state.store(false); repaint(); } }
 	void mouseExit(const juce::MouseEvent &e) override
 	{
-		if (!e.mods.isAnyMouseButtonDown())
+		if (latched || !e.mods.isAnyMouseButtonDown())
 			return;
 		state.store(false);
+		repaint();
+	}
+	void mouseDoubleClick(const juce::MouseEvent &) override
+	{
+		latched = !latched;
+		state.store(latched);
 		repaint();
 	}
 
 private:
 	juce::String text;
 	std::atomic<bool> &state;
+	bool latched = false;
 };
 
 // The POWER switch: a real latching push-button, not momentary - each click
 // flips it and it stays put, same as the real hardware's power switch.
+// Calls the processor's togglePower() (rather than writing the atomic
+// directly) so it can also arm the real-time boot sequence.
 class PowerButton : public juce::Component
 {
 public:
-	explicit PowerButton(std::atomic<bool> &target) : state(target) {}
+	PowerButton(std::atomic<bool> &target, Tx81zAudioProcessor &proc) : state(target), processor(proc) {}
 
 	void paint(juce::Graphics &g) override
 	{
@@ -67,15 +92,17 @@ public:
 
 	void mouseDown(const juce::MouseEvent &) override
 	{
-		state.store(!state.load());
+		processor.togglePower();
 		repaint();
 	}
 
 private:
 	std::atomic<bool> &state;
+	Tx81zAudioProcessor &processor;
 };
 
-// A small triangular left/right button (PARAMETER, MASTER VOLUME).
+// A small triangular left/right button (PARAMETER, MASTER VOLUME). Supports
+// the same double-click latch mechanism as MomentaryButton - see its comment.
 class TriangleButton : public juce::Component
 {
 public:
@@ -105,21 +132,34 @@ public:
 		}
 		g.setColour(juce::Colours::whitesmoke);
 		g.fillPath(tri);
+
+		if (latched)
+		{
+			g.setColour(juce::Colours::orange);
+			g.drawRoundedRectangle(bounds.reduced(1.5f), 3.0f, 2.0f);
+		}
 	}
 
-	void mouseDown(const juce::MouseEvent &) override { state.store(true); repaint(); }
-	void mouseUp(const juce::MouseEvent &) override { state.store(false); repaint(); }
+	void mouseDown(const juce::MouseEvent &) override { if (!latched) { state.store(true); repaint(); } }
+	void mouseUp(const juce::MouseEvent &) override { if (!latched) { state.store(false); repaint(); } }
 	void mouseExit(const juce::MouseEvent &e) override
 	{
-		if (!e.mods.isAnyMouseButtonDown())
+		if (latched || !e.mods.isAnyMouseButtonDown())
 			return;
 		state.store(false);
+		repaint();
+	}
+	void mouseDoubleClick(const juce::MouseEvent &) override
+	{
+		latched = !latched;
+		state.store(latched);
 		repaint();
 	}
 
 private:
 	bool right;
 	std::atomic<bool> &state;
+	bool latched = false;
 };
 
 // The actual front panel, always laid out at a fixed reference resolution

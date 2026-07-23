@@ -183,53 +183,34 @@ void Tx81zAudioProcessor::loadResources()
 	}
 }
 
-void Tx81zAudioProcessor::bootFirmware()
+void Tx81zAudioProcessor::togglePower()
 {
-	cpu.reset();
-	cpuCyclesAccum = 0.0;
-	midiClockAccum = 0.0;
-	chipSampleAccum = 0.0;
-	pendingMidiBytes.clear();
-	pendingByteIndex = 0;
-	sendingByte = false;
-	rxLine = true;
-
-	// Advance the CPU past the boot banner and, if the real factory NVRAM
-	// drops into the "UTILITY MODE" cold-start screen, press Play/Perform to
-	// land on the normal play screen - see the tx81z-vst-project memory notes
-	// for why this happens and how it was diagnosed (engine/tools/render_note.cpp).
-	auto runSeconds = [this](double seconds)
+	bool nowOn = !powerOn.load();
+	powerOn.store(nowOn);
+	if (nowOn)
 	{
-		long long total = (long long)(CPU_CLOCK_HZ * seconds);
-		long long done = 0;
-		while (done < total)
-		{
-			int actual = cpu.run(200);
-			done += actual;
-			midiClockAccum += actual * (MIDI_CLOCK_HZ / CPU_CLOCK_HZ);
-			while (midiClockAccum >= 1.0)
-			{
-				cpu.clock_serial();
-				midiClockAccum -= 1.0;
-			}
-		}
-	};
-
-	runSeconds(1.8);
-
-	buttons.playPerform.store(true);
-	runSeconds(0.2);
-	buttons.playPerform.store(false);
-	runSeconds(1.0);
+		// Consumed at the top of the next processBlock (audio thread) -
+		// resets the CPU there rather than here, since cpu/bus are only ever
+		// touched from the audio thread. Booting is then just the normal
+		// per-sample loop running from a freshly-reset CPU in real time, same
+		// as real hardware - no fast-forward, so the boot banner actually
+		// plays out over real elapsed seconds instead of being skipped
+		// before it's ever visible.
+		pendingBootReset.store(true);
+	}
+	else
+	{
+		ledBitsAtomic.store(0);
+		const juce::ScopedLock sl(lcdLock);
+		lcdLine1.clear();
+		lcdLine2.clear();
+	}
 }
 
 void Tx81zAudioProcessor::prepareToPlay(double sampleRate, int)
 {
 	hostSampleRate = sampleRate;
 	chipSampleRate = bus.opz_sample_rate(uint32_t(CPU_CLOCK_HZ / 2.0));
-
-	if (isReady())
-		bootFirmware();
 }
 
 bool Tx81zAudioProcessor::isBusesLayoutSupported(const BusesLayout &layouts) const
@@ -284,6 +265,22 @@ void Tx81zAudioProcessor::onSciTick()
 
 void Tx81zAudioProcessor::stepOneSample()
 {
+	// Auto-press Play/Perform ~1.8s after a real factory NVRAM's cold-start
+	// "UTILITY MODE" screen appears, same timing bootFirmware() used to
+	// fast-forward through - now it plays out over real wall-clock seconds
+	// instead, timed against the same clock the CPU/MIDI/audio advance on.
+	bootElapsedSeconds += 1.0 / hostSampleRate;
+	if (!autoPlayPerformPressed && bootElapsedSeconds >= 1.8)
+	{
+		buttons.playPerform.store(true);
+		autoPlayPerformPressed = true;
+	}
+	else if (autoPlayPerformPressed && !autoPlayPerformReleased && bootElapsedSeconds >= 2.0)
+	{
+		buttons.playPerform.store(false);
+		autoPlayPerformReleased = true;
+	}
+
 	cpuCyclesAccum += CPU_CLOCK_HZ / hostSampleRate;
 	while (cpuCyclesAccum >= 1.0)
 	{
@@ -348,6 +345,19 @@ void Tx81zAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, juce::M
 
 	if (!isReady() || !powerOn.load())
 		return; // powered off (or not loaded yet): frozen and silent, same as no power reaching the CPU
+
+	if (pendingBootReset.exchange(false))
+	{
+		cpu.reset();
+		cpuCyclesAccum = midiClockAccum = chipSampleAccum = 0.0;
+		pendingMidiBytes.clear();
+		pendingByteIndex = 0;
+		sendingByte = false;
+		rxLine = true;
+		samplesSinceLcdUpdate = 0;
+		bootElapsedSeconds = 0.0;
+		autoPlayPerformPressed = autoPlayPerformReleased = false;
+	}
 
 	struct QueuedEvent { int pos; std::vector<uint8_t> bytes; };
 	std::vector<QueuedEvent> events;

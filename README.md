@@ -27,6 +27,29 @@ banner ("YAMAHA TX81Z / Good morning!!") character-for-character, and real
 MIDI Note On/Off messages are bit-banged into the emulated UART exactly like
 a physical MIDI cable would.
 
+## Features
+
+- **Boots for real, in real time.** The plugin opens powered *off* - blank
+  LCD, dark LEDs, silent - exactly like a unit that's never been switched
+  on. Click the power button and the actual TX81Z firmware boots over the
+  real time it takes on genuine hardware, banner and all ("YAMAHA TX81Z /
+  Good morning!!" typing out character by character), not an instant
+  fast-forward. Click again to power off.
+- **Faithful, hand-painted front panel** matching the real hardware's
+  button/LED layout, with a resizable window that scales the whole panel
+  cleanly.
+- **Double-click to latch any button held down** - real front-panel combos
+  sometimes need two keys held down *at once*, which a single mouse pointer
+  can't do with an ordinary click. Double-click a button to latch it down
+  (it sinks and gets an amber outline); double-click again to release it. A
+  plain single click still works exactly as a normal momentary press.
+- **NVRAM persistence** - voice edits are written back to the same data file
+  the plugin loads from, on a background timer, plus embedded in the DAW
+  project's own save file as a second line of defense.
+- **Real MIDI I/O** - Note On/Off, and anything else your DAW sends, is
+  bit-banged into the emulated UART one bit at a time at genuine 31250 baud,
+  the same as a physical MIDI cable.
+
 ## You need your own ROM + NVRAM dump
 
 **No firmware or memory dumps are included in this repository** - they're
