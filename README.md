@@ -81,3 +81,24 @@ cmake --build plugin/build --config Release --target Tx81zEmulator_VST3
 ```
 
 JUCE is fetched automatically via CMake `FetchContent`.
+
+## Legal Notice
+
+This is an independent open-source software project. It is not affiliated
+with, endorsed by, sponsored by, or approved by Yamaha Corporation, Roland
+Corporation, Ensoniq Corporation, or any other trademark owner. All
+trademarks remain the property of their respective owners.
+
+No copyrighted Yamaha firmware, ROM images, or other proprietary binary
+files are included in or distributed with this repository - you must
+obtain and supply your own legally acquired ROM and NVRAM dumps (see
+"You need your own ROM + NVRAM dump" above).
+
+This project incorporates third-party open-source code (MAME-derived CPU
+core/LCD/bus logic, ymfm, JUCE); all original copyright notices and license
+headers have been preserved. See:
+
+- [LICENSE](LICENSE) - this project's own license (AGPLv3)
+- [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) - full third-party license details
+- [CREDITS.md](CREDITS.md) - acknowledgements
+- [DISCLAIMER.md](DISCLAIMER.md) - the full disclaimer text
